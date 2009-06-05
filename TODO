@@ -1,0 +1,13 @@
+Plan to implement
+-conversation server with clients
+--send(), resv()
+commit
+
+-fork once process each request
+--fork()
+
+-chat log
+--server will have database.
+
+-GUI frontend
+--client will have.
