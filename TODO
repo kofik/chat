@@ -1,11 +1,12 @@
-Plan to implement
+*Committed
 -conversation server with clients
 --send(), resv()
-commit
 
 -fork once process each request
 --fork()
 
+
+*Plan to implement
 -chat log
 --server will have database.
 

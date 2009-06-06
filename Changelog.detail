@@ -1,7 +1,9 @@
 2009-06-06T17:44:14 : 
-	- modified: replace strerror() by perror().
-	- deleted: errno.h, errcv
+	- forget to use strings strerror() returns
+		- modified: replace strerror() by perror().
+		- deleted: errno.h, errcv
 	- server fork process when client requests.
+		- added: fork(), wait(), etc.
 
 2009-06-05T15:21:51 : chat-0.1
 	- implementation features to communicate server with client.

@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <errno.h>
+#include "debugutil.h"
 #include <unistd.h>
 #elif _WIN32 /* {{{ */
 #include <winsock2.h>
@@ -34,6 +34,8 @@
 #define ERR_BUFSIZE     128
 #endif /* }}} */
 
+#define oops(msg)		{ perror(msg); exit(EXIT_FAILURE); }
+
 
 /* arguments order on command-line */
 enum {
@@ -56,14 +58,13 @@ main(int argc, char *argv[])
 	struct sockaddr_in addr;         /* server's ipv4 addr and app port */
 #ifdef __linux__
 	in_addr_t dst_ip;                /* server's addr(temporary) */
-#elif _WIN32
+#elif _WIN32/*{{{*/
 	u_long dst_ip;
-#endif
+#endif/*}}}*/
 	char ipaddr[IPADDR_SIZE];        /* server's addr dotted decimal notation */
 	u_short port = DEFAULT_PORT;     /* server's listening port */
 
 	char send_buf[MESSAGE_BUFSIZE];  /* message buffer */
-	int errsv = 0;
 #ifdef _WIN32 /* {{{ */
 	char err_buf[ERR_BUFSIZE];
 #endif /* }}} */
@@ -73,6 +74,9 @@ main(int argc, char *argv[])
 #ifdef _WIN32 /* {{{ */
 	WSAStartup(MAKEWORD(2, 0), &wsaData);
 #endif /* }}} */
+	if (argc != 2) {
+		fprintf(stderr, "too few argument on command-line.");
+	}
 
 	/* convert ip addr dotted notation to binary */
 	if ((dst_ip = inet_addr(argv[DST_IP])) == INADDR_NONE) {
@@ -82,9 +86,7 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("socket()");
 	}
 #elif _WIN32 /* {{{ */
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
@@ -106,9 +108,7 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 	if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("connect()");
 	}
 #elif _WIN32 /* {{{ */
 	if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -121,9 +121,9 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 	snprintf(ipaddr, sizeof(ipaddr) - 1, "%s", inet_ntoa(addr.sin_addr));
-#elif _WIN32
+#elif _WIN32/*{{{*/
 	sprintf_s(ipaddr, sizeof(ipaddr), "%s", inet_ntoa(addr.sin_addr));
-#endif
+#endif/*}}}*/
 	printf("Connected to '%s'\n", ipaddr);
 
 	while (1) {
@@ -132,25 +132,23 @@ main(int argc, char *argv[])
 
 #ifdef __linux__
 		if (send(sock, (char *)send_buf, strlen(send_buf), 0) == -1) {
-			errsv = errno;
-			strerror(errsv);
+			perror("send");
 			break;
+			/* TODO: case if server shut down. */
 		}
-#elif _WIN32
+#elif _WIN32/*{{{*/
 		if (send(sock, (char *)send_buf, strlen(send_buf), 0) == SOCKET_ERROR) {
 			errsv = errno;
 			strerror_s(err_buf, ERR_BUFSIZE, errsv);
 			// WSAGetLastErrorの方が詳しいエラー(ifの外で確認した方がいいかな？)
 			break;
 		}
-#endif
+#endif/*}}}*/
 	}
 
 #ifdef __linux__
 	if (close(sock) == -1) {
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("close()");
 	}
 #elif _WIN32 /* {{{ */
 	if (closesocket(sock) == SOCKET_ERROR) {

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include "debugutil.h"
 #elif _WIN32 /* {{{ */
 #include <winsock2.h>
@@ -26,13 +27,15 @@
 #define ERR_BUFSIZE     128
 #endif /* }}} */
 
+#define oops(msg)		{ perror(msg); exit(EXIT_FAILURE); }
+
 
 int 
 main()
 {
 #ifdef __linux__
-	int sock, s;     /* sock: :コネクション受け付け用のファイルディスクリプタ */
-	                 /*    s: :メッセージ送受信用のファイルディスクリプタ */
+	int sock, s;     /* sock: file descripter for accepting connection */
+	                 /*    s: file descripter for exchange messages */
 #elif _WIN32 /* {{{ */
 	WSADATA wsaData;
 	SOCKET sock, s;
@@ -44,6 +47,7 @@ main()
 
 	char recv_buf[RECV_BUFSIZE];
 	int errsv = 0;
+	pid_t client_id;
 #ifdef _WIN32 /* {{{ */
 	char err_buf[ERR_BUFSIZE];
 #endif /* }}} */
@@ -82,10 +86,7 @@ main()
 
 #ifdef __linux__
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-dbgerr("*");
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("bind");
 	}
 #elif _WIN32 /* {{{ */
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -97,9 +98,7 @@ dbgerr("*");
 
 #ifdef __linux__
 	if (listen(sock, backlog) == -1) {
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("bind");
 	}
 #elif _WIN32 /* {{{ */
 	if (listen(sock, backlog) == SOCKET_ERROR) {
@@ -111,11 +110,9 @@ dbgerr("*");
 
 #ifdef __linux__
 	addr_len = sizeof(addr);
-	/* accept､ﾎﾊﾖ､・ﾍ､ﾏ･皈ﾃ･ｻ｡ｼ･ｸｼｮﾍﾑ､ﾎ･ﾕ･｡･､･・ﾇ･｣･ｹ･ｯ･・ﾗ･ｿ､鬢ｷ､､ */
+	/* accept returns file descripter for exchange messages */
 	if ((s = accept(sock, (struct sockaddr *)&addr, &addr_len)) == -1) {
-		errsv = errno;
-		strerror(errsv);
-		return EXIT_FAILURE;
+		oops("bind");
 	}
 #elif _WIN32 /* {{{ */
 	addr_len = sizeof(addr);
@@ -127,38 +124,46 @@ dbgerr("*");
 	}
 #endif /* }}} */
 
-	printf("Connected from '%s'\n", inet_ntoa(addr.sin_addr));
+	client_id = fork();
+	if (client_id == 0) {
+		/* child process */
+		printf("Connected from '%s'\n", inet_ntoa(addr.sin_addr));
 
-	while (1) {
-		int i;
-#ifdef _WIN32
-		int recv_retval;
-#endif
-		recv_buf[0] = '\0';
-		for (i=0; i<RECV_BUFSIZE-1; ++i) {
+		while (1) {
+			int i;
+#ifdef _WIN32/*{{{*/
+			int recv_retval;
+#endif/*}}}*/
+			recv_buf[0] = '\0';
+			for (i=0; i<RECV_BUFSIZE-1; ++i) {
 #ifdef __linux__
-			if (recv(s, &recv_buf[i], 1, 0) <= 0) {
-				errsv = errno;
-				strerror(errsv);
-				// NOTE: need to make function or to use `goto' ?
-				// break;
-				return EXIT_FAILURE;
+				if (recv(s, &recv_buf[i], 1, 0) <= 0) {
+					perror("recv");
+					// NOTE: need to make function or to use `goto' ?
+					// break;
+					return EXIT_FAILURE;
+				}
+	#elif _WIN32/*{{{*/
+				if ((recv_retval = recv(s, &recv_buf[i], 1, 0)) == SOCKET_ERROR
+					 || recv_retval == 0) {
+					errsv = errno;
+					strerror_s(err_buf, ERR_BUFSIZE, errsv);
+					return EXIT_FAILURE;
+				}
+	#endif/*}}}*/
+				if (recv_buf[i] == '\n') {
+					break;
+				}
 			}
-#elif _WIN32
-			if ((recv_retval = recv(s, &recv_buf[i], 1, 0)) == SOCKET_ERROR
-				 || recv_retval == 0) {
-				errsv = errno;
-				strerror_s(err_buf, ERR_BUFSIZE, errsv);
-				return EXIT_FAILURE;
-			}
-#endif
-			if (recv_buf[i] == '\n') {
-				break;
-			}
+			recv_buf[i] = '\0';
+			printf("%s\n", recv_buf);
+			fflush(stdout);
 		}
-		recv_buf[i] = '\0';
-		printf("%s\n", recv_buf);
-		fflush(stdout);
+	}
+	else {
+		/* parent process */
+		wait(NULL);
+		printf("connection about to closed.\n");
 	}
 
 #ifdef __linux__
@@ -172,6 +177,7 @@ dbgerr("*");
 		return EXIT_FAILURE;
 	}
 #endif /* }}} */
+	printf("\aconnection closed.\n");
 
 #ifdef __linux__
 #elif _WIN32 /* {{{ */
