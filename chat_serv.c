@@ -9,7 +9,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include "debugutil.h"
+#include <signal.h>
+// #include "debugutil.h"
 #elif _WIN32 /* {{{ */
 #include <winsock2.h>
 #endif /* }}} */
@@ -28,6 +29,15 @@
 #endif /* }}} */
 
 #define oops(msg)		{ perror(msg); exit(EXIT_FAILURE); }
+
+
+void 
+reaper()
+{
+	int status;
+	wait(&status);
+	printf("connection about to closed.\n");
+}
 
 
 int 
@@ -109,23 +119,33 @@ main()
 #endif /* }}} */
 
 #ifdef __linux__
-	addr_len = sizeof(addr);
-	/* accept returns file descripter for exchange messages */
-	if ((s = accept(sock, (struct sockaddr *)&addr, &addr_len)) == -1) {
-		oops("bind");
-	}
-#elif _WIN32 /* {{{ */
-	addr_len = sizeof(addr);
-	if ((s = accept(sock, (struct sockaddr *)&addr, &addr_len))
-		                                                  == INVALID_SOCKET) {
-		errsv = errno;
-		strerror_s(err_buf, ERR_BUFSIZE, errsv);
-		return EXIT_FAILURE;
-	}
-#endif /* }}} */
+	/* コネクション待ち受けループ(親プロセスはacceptでブロックされる) */
+	while(1) {
+		// client_id = 0;
 
-	client_id = fork();
-	if (client_id == 0) {
+		addr_len = sizeof(addr);
+		/* accept returns file descripter for exchange messages */
+		if ((s = accept(sock, (struct sockaddr *)&addr, &addr_len)) == -1) {
+			oops("bind");
+		}
+	#elif _WIN32 /* {{{ */
+		addr_len = sizeof(addr);
+		if ((s = accept(sock, (struct sockaddr *)&addr, &addr_len))
+															  == INVALID_SOCKET) {
+			errsv = errno;
+			strerror_s(err_buf, ERR_BUFSIZE, errsv);
+			return EXIT_FAILURE;
+		}
+	#endif /* }}} */
+
+		signal(SIGCHLD, (void *)reaper);
+
+		client_id = fork();
+		if (client_id != 0) {
+			/* parent process is jumped the head of while block */
+			continue;
+		}
+
 		/* child process */
 		printf("Connected from '%s'\n", inet_ntoa(addr.sin_addr));
 
@@ -143,14 +163,14 @@ main()
 					// break;
 					return EXIT_FAILURE;
 				}
-	#elif _WIN32/*{{{*/
+#elif _WIN32/*{{{*/
 				if ((recv_retval = recv(s, &recv_buf[i], 1, 0)) == SOCKET_ERROR
 					 || recv_retval == 0) {
 					errsv = errno;
 					strerror_s(err_buf, ERR_BUFSIZE, errsv);
 					return EXIT_FAILURE;
 				}
-	#endif/*}}}*/
+#endif/*}}}*/
 				if (recv_buf[i] == '\n') {
 					break;
 				}
@@ -159,11 +179,7 @@ main()
 			printf("%s\n", recv_buf);
 			fflush(stdout);
 		}
-	}
-	else {
-		/* parent process */
-		wait(NULL);
-		printf("connection about to closed.\n");
+
 	}
 
 #ifdef __linux__

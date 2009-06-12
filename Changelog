@@ -1,7 +1,11 @@
+2009-06-12T18:57:57 : 
+	- added: fork child process to communicate with clients
+	- fixed: become possible multiplex connection
+
 2009-06-06T17:44:14 : 
-	- modified: replace strerror() by perror().
+	- fixed: replace strerror() by perror().
 	- deleted: errno.h, errcv
 	- server fork process when client requests.
 
-2009-06-05T15:21:51 : chat-0.1
+2009-06-05T15:21:51 : update to chat-0.1
 	- implementation features to communicate server with client.

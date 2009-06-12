@@ -5,6 +5,8 @@
 -fork once process each request
 --fork()
 
+-multiplex connection
+--fork()
 
 *Plan to implement
 -error handling on client when server shut down
@@ -14,3 +16,6 @@
 
 -GUI frontend
 --client will have.
+
+-Asynchronous I/O
+--select() ?

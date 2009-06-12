@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include "debugutil.h"
+// #include "debugutil.h"
 #include <unistd.h>
 #elif _WIN32 /* {{{ */
 #include <winsock2.h>
@@ -46,6 +46,14 @@ enum {
 
 
 
+void 
+usage(char *progname)
+{
+	// printf("%s [ipv4 addr] [port num]\n", progname);
+	printf("%s [ipv4 addr]\n", progname);
+}
+
+
 int 
 main(int argc, char *argv[])
 {
@@ -75,7 +83,9 @@ main(int argc, char *argv[])
 	WSAStartup(MAKEWORD(2, 0), &wsaData);
 #endif /* }}} */
 	if (argc != 2) {
-		fprintf(stderr, "too few argument on command-line.");
+		usage(argv[0]);
+		fprintf(stderr, "too few argument on command-line.\n");
+		return EXIT_FAILURE;
 	}
 
 	/* convert ip addr dotted notation to binary */
